@@ -1,8 +1,17 @@
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import KFold, cross_val_score
-from sklearn.metrics import accuracy_score
+from sklearn.model_selection import KFold, cross_val_score, StratifiedKFold, GridSearchCV,cross_validate
+from sklearn.metrics import (
+    accuracy_score, classification_report, confusion_matrix,
+    roc_auc_score, average_precision_score, log_loss, brier_score_loss
+)
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
 import xgboost as xb
+from xgboost.callback import EarlyStopping
+import pprint
+import numpy as np
 
 def train_test(x, y):
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.30, random_state=42)
@@ -10,47 +19,122 @@ def train_test(x, y):
     return x_train, x_test, y_train, y_test
 
 def logistic(x_train, y_train, x_test, y_test):
-    kf = KFold(n_splits=10, random_state=42, shuffle =True)
 
-    model = LogisticRegression(max_iter=1000)
+    lr = LogisticRegression(
+        solver="lbfgs",          # robust default for L2
+        penalty="l2",
+        C=1.0,
+        max_iter=2000,
+        random_state=42,
+        class_weight="balanced"
+    )
 
-    scores = cross_val_score(model, x_train, y_train, cv=kf)
-    
-    model.fit(x_train, y_train)
-    test_score = model.score(x_test, y_test)
+    pipe = Pipeline([
+        ("impute", SimpleImputer(strategy="median")),
+        ("scale", StandardScaler(with_mean=True, with_std=True)),
+        ("clf", lr)
+    ])
 
-    return  {
-        "cv_mean": scores.mean(),
-        "cv_std": scores.std(),
-        "test_score": test_score,
-        "cv_scores": scores
+    cv = StratifiedKFold(n_splits=7, shuffle=True, random_state=42)
+    cv_scoring = {
+        "accuracy": "accuracy",
+        "roc_auc": "roc_auc",
+        "pr_auc": "average_precision"  # area under PR curve (AP)
+    }
+    cv_res = cross_validate(
+        pipe, x_train, y_train,
+        scoring=cv_scoring,
+        cv=cv,
+        return_estimator=False
+    )
+
+    cv_summary = {
+        k: {
+            "mean": float(np.mean(v)),
+            "std": float(np.std(v))
+        } for k, v in cv_res.items() if k.startswith("test_")
     }
 
+    pipe.fit(x_train, y_train)
+
+    # Test predictions
+    y_pred = pipe.predict(x_test)
+    y_proba = pipe.predict_proba(x_test)[:, 1]  # positive-class probabilities
+
+
+    roc = roc_auc_score(y_test, y_proba)
+
+    # Robust test metrics
+    test_metrics = {
+        "accuracy": accuracy_score(y_test, y_pred),
+        "roc_auc": roc_auc_score(y_test, y_proba),
+        "pr_auc": average_precision_score(y_test, y_proba),
+        "log_loss": log_loss(y_test, y_proba, labels=[0, 1]),
+        "brier_score": brier_score_loss(y_test, y_proba)
+    }
+
+    report = classification_report(y_test, y_pred, output_dict=True)
+    cm = confusion_matrix(y_test, y_pred)
+
+    # Coefficients (note: these are w.r.t. standardized features)
+    clf = pipe.named_steps["clf"]
+    coefs = clf.coef_.ravel()
+    intercept = float(clf.intercept_[0])
+    return {
+        "model": pipe,
+        "cv_summary": cv_summary,                 # means/stds for accuracy/roc_auc/pr_auc on train (CV)
+        "test_metrics": test_metrics,             # accuracy, ROC-AUC, PR-AUC, log-loss, brier
+        "classification_report": report,
+        "confusion_matrix": cm,
+        "test_pred_labels": y_pred,
+        "test_pred_proba": y_proba,               # positive-class probs
+        "intercept": intercept,
+        "ROCscore" : roc    
+    }
 
 def boosted_tree(x_train, y_train, x_test, y_test):
-    kf = KFold(n_splits=5, random_state=42, shuffle=True)
+    kf = StratifiedKFold(n_splits=10, random_state=42, shuffle=True)
+
+    pos = float((y_train == 1).sum())
+    neg = float((y_train == 0).sum())
+    spw = (neg / pos) if pos > 0 else 1.0
 
     param = {
-        "n_estimators": 250,
+        "n_estimators": 125    ,
         "objective": "binary:logistic",
         "max_depth": 6,
         "eval_metric": "logloss",
         "random_state": 42,
-        "learning_rate": 0.55,
-        "tree_method": "hist"
+        "learning_rate": 0.10,
+        "tree_method": "hist",
+        "n_jobs": -1,
+        "scale_pos_weight": spw,        
+        "subsample": 0.9,
+        "colsample_bytree": 0.9,
     }
 
     model = xb.XGBClassifier(**param)
 
-    scores = cross_val_score(model, x_train, y_train, cv=kf)
-
-    model.fit(x_train, y_train)
+    scores = cross_val_score(model, x_train, y_train, cv=kf, scoring="accuracy")
+    
+    model.fit(x_train, y_train)  
     
     y_pred = model.predict(x_test)
 
+    y_scores = model.predict_proba(x_test)[:, 1]
+
+    roc = roc_auc_score(y_test, y_scores)
+    pr = average_precision_score(y_test, y_scores)
+    print(f"XGB Test ROC-AUC: {roc:.4f} | PR-AUC: {pr:.4f}")
+
+
+    class_report = classification_report(y_test, y_pred)
+
+    con_matrix = confusion_matrix(y_test, y_pred)
+
     accuracy = accuracy_score(y_test, y_pred)
 
-    return accuracy
+    return accuracy, class_report, con_matrix, scores
 
 def bayes_model():
     """
@@ -62,8 +146,10 @@ def bayes_model():
     pass
 
 
-def results():
-    pass
-
+def results(acc, classReport, conMa, scores):
+    print(f"This is the accuracy of the model: {acc}\n")
+    print(f"This is the classification report:\n {classReport}")
+    print(f"Mean cross vidation scores: {scores.mean():.4f}")
+    pprint.pprint(f"This is the confusion matrix: {conMa}")
 
 
