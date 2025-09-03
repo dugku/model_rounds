@@ -1,6 +1,5 @@
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
-<<<<<<< HEAD
 from sklearn.model_selection import KFold, cross_val_score, StratifiedKFold, GridSearchCV,cross_validate
 from sklearn.metrics import (
     accuracy_score, classification_report, confusion_matrix,
@@ -13,7 +12,6 @@ import xgboost as xb
 from xgboost.callback import EarlyStopping
 import pprint
 import numpy as np
-=======
 from sklearn.model_selection import KFold, cross_val_score
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
@@ -22,7 +20,7 @@ import numpy as np
 import pymc as pm
 import arviz as az
 import pytensor.tensor as pt
->>>>>>> f1a978e (WIP need to add)
+
 
 def train_test(x, y):
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.30, random_state=42)
@@ -111,26 +109,17 @@ def boosted_tree(x_train, y_train, x_test, y_test):
     spw = (neg / pos) if pos > 0 else 1.0
 
     param = {
-<<<<<<< HEAD
         "n_estimators": 125    ,
-=======
-        "n_estimators": 100,
->>>>>>> f1a978e (WIP need to add)
         "objective": "binary:logistic",
         "max_depth": 6,
         "eval_metric": "logloss",
         "random_state": 42,
-<<<<<<< HEAD
         "learning_rate": 0.10,
         "tree_method": "hist",
         "n_jobs": -1,
         "scale_pos_weight": spw,        
         "subsample": 0.9,
         "colsample_bytree": 0.9,
-=======
-        "learning_rate": 0.50,
-        "tree_method": "hist"
->>>>>>> f1a978e (WIP need to add)
     }
 
     model = xb.XGBClassifier(**param)
@@ -167,13 +156,6 @@ def bayes_model(x, y):
 
     x = x.astype(np.float64)
 
-<<<<<<< HEAD
-def results(acc, classReport, conMa, scores):
-    print(f"This is the accuracy of the model: {acc}\n")
-    print(f"This is the classification report:\n {classReport}")
-    print(f"Mean cross vidation scores: {scores.mean():.4f}")
-    pprint.pprint(f"This is the confusion matrix: {conMa}")
-=======
     with pm.Model() as cs_round_model:
         intercept = pm.Normal('intercept', mu=0, sigma=1.5)
 
@@ -188,7 +170,6 @@ def results(acc, classReport, conMa, scores):
         trace = pm.sample(1000, tune=1000, chains=4, target_accept=0.95, return_inferencedata=True)
 
     return trace
-
 
 
 def standardize_features(x):
@@ -207,6 +188,11 @@ def standardize_features(x):
         return x_std
     return x
 
->>>>>>> f1a978e (WIP need to add)
+
+def results(acc, classReport, conMa, scores):
+    print(f"This is the accuracy of the model: {acc}\n")
+    print(f"This is the classification report:\n {classReport}")
+    print(f"Mean cross vidation scores: {scores.mean():.4f}")
+    pprint.pprint(f"This is the confusion matrix: {conMa}")
 
 

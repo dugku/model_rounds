@@ -1,16 +1,10 @@
 import numpy as np
 import pandas as pd
-<<<<<<< HEAD
 import pprint
-from models import train_test, logistic, boosted_tree, results
-
-=======
-
-from models import train_test, logistic, boosted_tree, bayes_model
+from models import train_test, logistic, boosted_tree, results, bayes_model
 import arviz as az
 import matplotlib.pyplot as plt
 import os
->>>>>>> f1a978e (WIP need to add)
 
 def main():
     df = read_file("rounds.csv")
@@ -19,25 +13,14 @@ def main():
     df_dummies = process_others(df_cl)
 
     x, y = get_seperate_data(df_dummies)
-<<<<<<< HEAD
 
     x_train, x_test, y_train, y_test = train_test(x, y)
     #thingy_dict = logistic(x_train, y_train, x_test, y_test)
-    accuracy, class_report, con_matrix, scores = boosted_tree(x_train, y_train, x_test, y_test)
+    #accuracy, class_report, con_matrix, scores = boosted_tree(x_train, y_train, x_test, y_test)
     #pprint.pprint(thingy_dict)
-    results(accuracy, classReport=class_report, conMa=con_matrix, scores=scores)
+    bayes_model(x, y)
+    #results(accuracy, classReport=class_report, conMa=con_matrix, scores=scores)
     
-=======
-#
-    x_train, x_test, y_train, y_test = train_test(x, y)
-    #scores = logistic(x_train, y_train, x_test, y_test)
-    #acc = boosted_tree(x_train, y_train, x_test, y_test)
-    trace = bayes_model(x, y)
-    summ = az.summary(trace, var_names=["intercept", "beta"])
-    print(summ.to_string())
-    az.plot_trace(trace, var_names=["intercept", "beta"], compact=True)
-    plt.show()
->>>>>>> f1a978e (WIP need to add)
 def read_file(path):
     df = pd.read_csv(path)
 
